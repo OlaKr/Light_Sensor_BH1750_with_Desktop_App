@@ -3,6 +3,7 @@ from logging import exception
 from re import A
 import sys
 import os
+from matplotlib.pyplot import box
 import serial.tools.list_ports
 import re
 from PyQt5 import QtWidgets
@@ -23,10 +24,10 @@ class MyWindow(QMainWindow):
         uic.loadUi('myApp.ui', self)
         
         self.setWindowTitle("MyApp")
-        # self.setGeometry(500, 500, 500, 500)
 
         self.value = 0
         self.flag = 0
+        self.box_flag = 0
 
         # ComboBox
         self.port_box = self.findChild(QtWidgets.QComboBox, "port_box")
@@ -36,8 +37,7 @@ class MyWindow(QMainWindow):
 
         # Buttons
         self.connect_button = self.findChild(QtWidgets.QPushButton, "connectbtn")
-        # self.connect_button.clicked.connect(self.connection)
-        self.connect_button.clicked.connect(self.all)
+        self.connect_button.clicked.connect(self.connection)
 
         self.led_button = self.findChild(QtWidgets.QPushButton, "ledbtn")
         self.led_button.clicked.connect(self.toggleBtn)
@@ -59,14 +59,12 @@ class MyWindow(QMainWindow):
         # Check buttons
         self.check_thread = self.findChild(QtWidgets.QCheckBox, "threadbox")
         self.check_message = self.findChild(QtWidgets.QCheckBox, "messagebox")
-        self.check_message.clicked.connect(self.message)
-        # self.check_message.stateChanged.connect(self.message)
+        # self.check_message.clicked.connect(self.message)
+        self.check_message.stateChanged.connect(self.message)
 
 
         # Slider
         self.bright_slider = self.findChild(QtWidgets.QSlider, "brightslider")
-        # actual_brightness = screen.get_brightness()
-        
         self.actual_brightness = screen.get_brightness()
         self.bright_slider.setValue(self.actual_brightness[0])
         self.bright_slider.valueChanged.connect(self.setBrightness)
@@ -77,7 +75,7 @@ class MyWindow(QMainWindow):
         self.command_text = self.findChild(QtWidgets.QPlainTextEdit, "command")
         self.run_btn = self.findChild(QtWidgets.QPushButton, "run_btn")
         self.run_btn.clicked.connect(self.runCommand)
-        # self.check_message.clicked.connect(self.message)
+        
         self.output_text = self.findChild(QtWidgets.QPlainTextEdit, "output")
         self.clean_btn = self.findChild(QtWidgets.QPushButton, "clean_btn")
         self.clean_btn.clicked.connect(lambda: self.output_text.clear())
@@ -105,7 +103,7 @@ class MyWindow(QMainWindow):
             print("Jakie cwd:", os.getcwd())
         elif line=="help":
             self.output_text.clear()
-            show_help = "Available commands: \n - cwd \n - haha"
+            show_help = "Available commands: \n - cwd \n - on"
             self.output_text.insertPlainText(show_help)
         elif line=="on":
             pin_on = "on\n"
@@ -124,33 +122,27 @@ class MyWindow(QMainWindow):
     def getValues(self):
         if self.flag==1:
             self.values_label.setText("Sensor results:")
-            # global boxx
             pin_on = "on\n"
             self.ser.write(pin_on.encode())
 
             try: 
-                # if self.connect_button.isChecked() == True:
-                
+        
                 data = self.ser.readline()
                 dec_data = float(data.decode('utf-8'))
-                # dec_data = data.decode('utf-8')
                 self.value = dec_data
-                print("ale:", self.value)
-                # boxx = dec_data
-                self.check_function(dec_data)
-                # self.check_it(boxx)
-                print(dec_data)
-                # return dec_data
-                # self.values_text.setText(dec_data)
+                print("value: ", self.value)
 
+                if self.check_thread.isChecked() == True:
+                    screen.set_brightness(self.calculate(self.value))
+
+                self.actual_brightness = screen.get_brightness()
+                self.bright_slider.setValue(self.actual_brightness[0])
+                print("AKTUALNA: ", self.actual_brightness[0])
+                # self.values_text.setText(dec_data)
 
             except Exception as exc:
                 print(f"Exception: {exc}")
 
-        # self.update()
-
-    # def check_it(self, boxx):
-    #     return boxx
 
     def calculate(self, getvalues):
         print(getvalues)
@@ -158,16 +150,7 @@ class MyWindow(QMainWindow):
         if getvalues>max:
             getvalues=max
         x = 100*getvalues/max
-        # screen.set_brightness(x)
         return x
-
-    def check_function(self, getvalues):
-        if self.check_thread.isChecked() == True:
-            # self.calculate(getvalues)
-            # screen.set_brightness(self.calculate(getvalues))
-            screen.set_brightness(self.calculate(self.value))
-            self.actual_brightness = screen.get_brightness()
-            self.bright_slider.setValue(self.actual_brightness[0])
 
 
     def setBrightness(self, value):
@@ -177,13 +160,17 @@ class MyWindow(QMainWindow):
 
     def message(self):
         # if self.check_message.isChecked() == True:
-            # print(boxx)
+        if self.box_flag==0:
             print("jasnossc: ", screen.get_brightness())
-            print("ale2:", self.value)
-            # jesli odczytana wartość i przekonwertowana w calculate dużo różni się od ustawionej jasności ekranu to wywołaj to okno
-            answer = QMessageBox.question(self, "MessageBox", "Do you want to adjust screen brightness?", QMessageBox.Yes | QMessageBox.Ignore)
-            if answer == QMessageBox.Yes:
-                screen.set_brightness(self.calculate(self.value))
+            self.actual_brightness = screen.get_brightness()
+            if self.actual_brightness[0]-20>self.calculate(self.value) or self.actual_brightness[0]+20<self.calculate(self.value):
+                print("ale2:", self.value)
+                self.box_flag = 1
+                answer = QMessageBox.question(self, "MessageBox", "Do you want to adjust screen brightness?", QMessageBox.Yes | QMessageBox.Ignore)
+                if answer == QMessageBox.Yes:
+                    screen.set_brightness(self.calculate(self.value))
+                    self.bright_slider.setValue(self.actual_brightness[0])
+                    self.box_flag = 0
                 
     def set_port(self):
         ports = serial.tools.list_ports.comports()
@@ -191,28 +178,16 @@ class MyWindow(QMainWindow):
             self.port_box.addItems([str(device)])
 
 
-    # def connection(self):
-    #     self.connect_label.setText("Device is connected")
-    #     self.ser = serial.Serial("COM6", "115200", timeout=None)
-    #     print("App is connected with device")
-
-    def all(self):
+    def connection(self):
         self.connect_label.setText("Device is connected")
         clicked_com = str(self.port_box.currentText())
         clicked_baud = str(self.baud_box.currentText())
-        # por2 = clicked_com[:4]
         por = re.search(r"\bCOM\d", clicked_com)
-        # print(por2.group())
+        # self.ser = serial.Serial("COM6", "115200", timeout=None)
         self.ser = serial.Serial(por.group(), clicked_baud, timeout=None)
         print("App is connected with device")
         self.flag = 1 # device is connected
         
-
-
-    # def update(self):
-    #     self.conLabel.adjustSize()
-
-
 
 def custom_handler(signum, frame):
     print('ctrl+c was pressed')
@@ -225,7 +200,6 @@ def window():
     win = MyWindow()
     win.show()
     
-    # if win.connect_button.isChecked() == True:
     timer = RepeatTimer(1,win.getValues)
     timer.start()
 
